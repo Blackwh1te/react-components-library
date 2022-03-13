@@ -37,6 +37,10 @@
 
         transform: initial;
       }
+
+      &__search-input {
+        @mixin show;
+      }
     }
   }
 
@@ -158,6 +162,31 @@
     &.is-selected {
       color: var(--optionSelectedTextColor);
       background-color: var(--optionSelectedBgColor);
+    }
+  }
+
+  &__search-input {
+    @mixin abs-cover;
+    @mixin hide;
+  }
+
+  &__search-input-clear-button {
+    --size: var(--inputHeight);
+
+    @mixin reset-btn;
+
+    position: absolute;
+    top: 0;
+    right: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: var(--size);
+    height: var(--size);
+    cursor: pointer;
+
+    &:not(.is-shown) {
+      @mixin hide;
     }
   }
 }

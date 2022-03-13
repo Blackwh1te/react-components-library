@@ -1,9 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react'
 import './Select.pcss'
-import '../Input/Input.pcss'
-import classNames from 'classnames/bind';
-import {getRandomString} from '../../utils/getRandomString'
+import {classNames} from '../../utils/classNames'
 import {isMobileDevice} from '../../utils/isMobileDevice'
+import {wait} from '../../utils/wait'
+import Input from '../Input/Input'
 
 export const messages = {
   notSelected: 'Не выбрано',
@@ -21,24 +21,27 @@ const Select = (props) => {
     disabled,
     multiple,
     form,
+    hasSearch = false,
     options: defaultOptions = [],
   } = props
 
   const [isOpen, setIsOpen] = useState(false)
   const [options, setOptions] = useState(defaultOptions)
-  const selectedOptions = options.filter((option) => option.isSelected)
+  const [filteredOptions, setFilteredOptions] = useState(options)
+  const [searchInputValue, setSearchInputValue] = useState('')
+  const selectedOptions = options.filter(({isSelected}) => isSelected)
   const value = selectedOptions.map((selectedOption) => selectedOption.value)
   const currentVariant = (selectedOptions.length > 1) ? messages.severalOptionsSelected :
     (selectedOptions.length === 0) ? messages.notSelected : selectedOptions[0].label
-  const ariaActivedescendant = selectedOptions[0] ? selectedOptions[0].value : ''
-  const selectRef = useRef()
+  const selectRef = useRef(null)
+  const searchInputRef = useRef(null)
 
   const toggleVisibility = () => {
     setIsOpen(!isOpen)
   }
 
   const selectPrevOption = () => {
-    const selectedOptionIndex = options.findIndex((option, index) => option.isSelected)
+    const selectedOptionIndex = options.findIndex((option) => option.isSelected)
     const previousOptionIndex = (selectedOptionIndex > 0) ? (selectedOptionIndex - 1) : options.length - 1
     const newOptions = options.map((option, index) => ({
       ...option,
@@ -49,7 +52,7 @@ const Select = (props) => {
   }
 
   const selectNextOption = () => {
-    const selectedOptionIndex = options.findIndex((option, index) => option.isSelected)
+    const selectedOptionIndex = options.findIndex(({isSelected}) => isSelected)
     const nextOptionIndex = (selectedOptionIndex < options.length) ? (selectedOptionIndex + 1) : 0
     const newOptions = options.map((option, index) => ({
       ...option,
@@ -57,6 +60,21 @@ const Select = (props) => {
     }))
 
     setOptions(newOptions)
+  }
+
+  const focusSeachInput = () => {
+    if (searchInputRef.current) {
+      wait(100).then(() => {
+        searchInputRef.current.focus()
+      })
+    }
+  }
+
+  const filterOptions = () => {
+    const cleanValue = searchInputValue.trim().toLowerCase()
+    const newFilteredOptions = options.filter(({label}) => label.trim().toLowerCase().includes(cleanValue))
+
+    setFilteredOptions(newFilteredOptions)
   }
 
   const handleKeyDown = (event) => {
@@ -97,7 +115,7 @@ const Select = (props) => {
   }
 
   const handleOptionClick = (option) => {
-    const {label, value, isSelected} = option
+    const {value, isSelected} = option
 
     const newOptions = (multiple) ?
       options.map((option) => {
@@ -127,12 +145,34 @@ const Select = (props) => {
   }
 
   const handleLabelClick = () => {
-    setIsOpen(true)
+    setIsOpen(false)
+  }
+
+  const handleSearchInput = (event) => {
+    setSearchInputValue(event.target.value)
+    filterOptions()
+  }
+
+  const bindEvents = () => {
+    document.addEventListener('click', (event) => handleClick(event))
   }
 
   useEffect(() => {
-    document.addEventListener('click', (event) => handleClick(event))
+    bindEvents()
   }, [])
+
+  useEffect(() => {
+    setSearchInputValue('')
+    filterOptions()
+
+    if (isOpen) {
+      focusSeachInput()
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    setFilteredOptions(options)
+  }, [options])
 
   return (
     <div
@@ -182,14 +222,33 @@ const Select = (props) => {
         }
       </label>
       <div className="select__body">
+        {
+          hasSearch &&
+          <>
+            <Input
+              className="select__search-input"
+              ref={searchInputRef}
+              value={searchInputValue}
+              onInput={handleSearchInput}
+            />
+            <button
+              className={classNames('select__search-input-clear-button', {
+                'is-shown': false
+              })}
+            >
+              X
+            </button>
+          </>
+        }
         <div
-          className="select__input form-input"
+          className="select__input input"
           role="combobox"
           aria-autocomplete="list"
           aria-expanded="false"
+          aria-controls={id}
           aria-labelledby={`select-label-${id}`}
           aria-owns={`select-dropdown-${id}`}
-          aria-activedescendant={ariaActivedescendant}
+          aria-activedescendant={selectedOptions[0] ? selectedOptions[0].value : ''}
           tabIndex={isMobileDevice() ? -1 : 0}
           onClick={handleOpenButtonClick}
           onKeyPress={handleOpenButtonKeyPress}
@@ -206,45 +265,49 @@ const Select = (props) => {
             ▽
           </span>
         </div>
-        <div
-          className="select__dropdown"
-          id={`select-dropdown-${id}`}
-        >
-          <ul
-            className="select__dropdown-list"
-            role="listbox"
+        {
+          Boolean(filteredOptions.length) &&
+          <div
+            className="select__dropdown"
+            id={`select-dropdown-${id}`}
           >
-            {
-              options.map((option) => {
-                const {
-                  label,
-                  value,
-                  isSelected
-                } = option
+            <ul
+              className="select__dropdown-list"
+              role="listbox"
+            >
+              {
+                filteredOptions.map((option) => {
+                  const {
+                    label,
+                    value,
+                    isSelected,
+                  } = option
 
-                return (
-                  <li
-                    className="select__dropdown-item"
-                    role="presentation"
-                    key={value}
-                  >
-                    <button
-                      className={classNames('select__option', {
-                        'is-selected': isSelected
-                      })}
-                      id={value}
-                      type="button"
-                      role="option"
-                      onClick={() => handleOptionClick(option)}
+                  return (
+                    <li
+                      className="select__dropdown-item"
+                      role="presentation"
+                      key={value}
                     >
-                      {label}
-                    </button>
-                  </li>
-                )
-              })
-            }
-          </ul>
-        </div>
+                      <button
+                        className={classNames('select__option', {
+                          'is-selected': isSelected
+                        })}
+                        id={value}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => handleOptionClick(option)}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  )
+                })
+              }
+            </ul>
+          </div>
+        }
       </div>
     </div>
   )
